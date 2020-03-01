@@ -17,8 +17,6 @@ enum FP_MODE {
 	GF_DEBUG_MODE = 0x56
 };
 
-#define SUPPORT_NAV_EVENT
-
 #if defined(SUPPORT_NAV_EVENT)
 #define GF_NAV_INPUT_UP				KEY_UP
 #define GF_NAV_INPUT_DOWN			KEY_DOWN
@@ -29,13 +27,6 @@ enum FP_MODE {
 #define GF_NAV_INPUT_LONG_PRESS		KEY_SEARCH
 #define GF_NAV_INPUT_HEAVY			KEY_CHAT
 #endif
-
-#define GF_KEY_INPUT_HOME			KEY_HOME
-#define GF_KEY_DOUBLE_CLICK			BTN_C
-#define GF_KEY_INPUT_MENU			KEY_MENU
-#define GF_KEY_INPUT_BACK			KEY_BACK
-#define GF_KEY_INPUT_POWER			KEY_POWER
-#define GF_KEY_INPUT_CAMERA			KEY_CAMERA
 
 #if defined(SUPPORT_NAV_EVENT)
 typedef enum gf_nav_event {
@@ -52,26 +43,6 @@ typedef enum gf_nav_event {
 	GF_NAV_DOUBLE_CLICK,
 } gf_nav_event_t;
 #endif
-
-typedef enum gf_key_event {
-	GF_KEY_NONE = 0,
-	GF_KEY_HOME,
-	GF_KEY_POWER,
-	GF_KEY_MENU,
-	GF_KEY_BACK,
-	GF_KEY_CAMERA,
-	GF_KEY_HOME_DOUBLE_CLICK,
-} gf_key_event_t;
-
-struct gf_key {
-	enum gf_key_event key;
-	uint32_t value; /* key down = 1, key up = 0 */
-};
-
-struct gf_key_map {
-	unsigned int type;
-	unsigned int code;
-};
 
 struct gf_ioc_chip_info {
 	unsigned char vendor_id;
