@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2019-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2021-2022, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt)	"BATTERY_CHG: %s: " fmt, __func__
@@ -32,6 +33,7 @@
 
 /* opcode for battery charger */
 #define BC_SET_NOTIFY_REQ		0x04
+#define BC_DISABLE_NOTIFY_REQ		0x05
 #define BC_NOTIFY_IND			0x07
 #define BC_BATTERY_STATUS_GET		0x30
 #define BC_BATTERY_STATUS_SET		0x31
@@ -454,6 +456,7 @@ struct battery_chg_dev {
 	bool				restrict_chg_en;
 	/* To track the driver initialization status */
 	bool				initialized;
+	bool				notify_en;
 };
 
 static const int battery_prop_map[BATT_PROP_MAX] = {
@@ -736,19 +739,42 @@ static int get_property_id(struct psy_state *pst,
 	return -ENOENT;
 }
 
+static void battery_chg_notify_disable(struct battery_chg_dev *bcdev)
+{
+	struct battery_charger_set_notify_msg req_msg = { { 0 } };
+	int rc;
+
+	if (bcdev->notify_en) {
+		/* Send request to disable notification */
+		req_msg.hdr.owner = MSG_OWNER_BC;
+		req_msg.hdr.type = MSG_TYPE_NOTIFY;
+		req_msg.hdr.opcode = BC_DISABLE_NOTIFY_REQ;
+
+		rc = battery_chg_write(bcdev, &req_msg, sizeof(req_msg));
+		if (rc < 0)
+			pr_err("Failed to disable notification rc=%d\n", rc);
+		else
+			bcdev->notify_en = false;
+	}
+}
+
 static void battery_chg_notify_enable(struct battery_chg_dev *bcdev)
 {
 	struct battery_charger_set_notify_msg req_msg = { { 0 } };
 	int rc;
 
-	/* Send request to enable notification */
-	req_msg.hdr.owner = MSG_OWNER_BC;
-	req_msg.hdr.type = MSG_TYPE_NOTIFY;
-	req_msg.hdr.opcode = BC_SET_NOTIFY_REQ;
+	if (!bcdev->notify_en) {
+		/* Send request to enable notification */
+		req_msg.hdr.owner = MSG_OWNER_BC;
+		req_msg.hdr.type = MSG_TYPE_NOTIFY;
+		req_msg.hdr.opcode = BC_SET_NOTIFY_REQ;
 
-	rc = battery_chg_write(bcdev, &req_msg, sizeof(req_msg));
-	if (rc < 0)
-		pr_err("Failed to enable notification rc=%d\n", rc);
+		rc = battery_chg_write(bcdev, &req_msg, sizeof(req_msg));
+		if (rc < 0)
+			pr_err("Failed to enable notification rc=%d\n", rc);
+		else
+			bcdev->notify_en = true;
+	}
 }
 
 static void battery_chg_state_cb(void *priv, enum pmic_glink_state state)
@@ -760,6 +786,8 @@ static void battery_chg_state_cb(void *priv, enum pmic_glink_state state)
 	atomic_set(&bcdev->state, state);
 	if (state == PMIC_GLINK_STATE_UP)
 		schedule_work(&bcdev->subsys_up_work);
+	else if (state == PMIC_GLINK_STATE_DOWN)
+		bcdev->notify_en = false;
 }
 
 /**
@@ -941,6 +969,7 @@ static void handle_message(struct battery_chg_dev *bcdev, void *data,
 
 		break;
 	case BC_SET_NOTIFY_REQ:
+	case BC_DISABLE_NOTIFY_REQ:
 	case BC_SHUTDOWN_NOTIFY:
 	case BC_SHIP_MODE_REQ_SET:
 		/* Always ACK response for notify or ship_mode request */
@@ -4577,7 +4606,7 @@ static int mi_disp_notifier_callback(struct notifier_block *nb,
 		pr_debug("val:%lu, blank:%u\n", val, blank);
 
 		bcdev->blank_state = (blank == MI_DISP_DPMS_ON) ? 0 : 1;
-
+		battery_chg_notify_disable(bcdev);
 		schedule_work(&bcdev->notify_blankstate_work);
 	}
 	return NOTIFY_OK;
@@ -4699,6 +4728,7 @@ static int battery_chg_probe(struct platform_device *pdev)
 	}
 
 	battery_chg_add_debugfs(bcdev);
+	bcdev->notify_en = false;
 	battery_chg_notify_enable(bcdev);
 	device_init_wakeup(bcdev->dev, true);
 	schedule_work(&bcdev->usb_type_work);
