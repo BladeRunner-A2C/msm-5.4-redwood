@@ -1496,7 +1496,7 @@ static int battery_psy_set_charge_current(struct battery_chg_dev *bcdev,
 		return -EINVAL;
 	}
 
-	pr_debug("set thermal-level: %d num_thermal_levels: %d \n", val, bcdev->num_thermal_levels);
+	pr_info("set thermal-level: %d num_thermal_levels: %d \n", val, bcdev->num_thermal_levels);
 
 	if (val < 0 || val >= bcdev->num_thermal_levels)
 		return -EINVAL;
@@ -3191,7 +3191,7 @@ static void usbpd_request_vdm_cmd(struct battery_chg_dev *bcdev, enum uvdm_state
 	u32 prop_id, val = 0;
 	int rc;
 
-	pr_err("usbpd_request_vdm_cmd:cmd = %d, data = %d\n", cmd, *data);
+	pr_debug("usbpd_request_vdm_cmd:cmd = %d, data = %d\n", cmd, *data);
 	switch (cmd) {
 	case USBPD_UVDM_CHARGER_VERSION:
 		prop_id = XM_PROP_VDM_CMD_CHARGER_VERSION;
@@ -3255,7 +3255,7 @@ static ssize_t request_vdm_cmd_store(struct class *c,
 
 	ret = sscanf(buf, "%d,%s\n", &cmd, buffer);
 
-	pr_info("%s:buf:%s cmd:%d, buffer:%s\n", __func__, buf, cmd, buffer);
+	pr_debug("%s:buf:%s cmd:%d, buffer:%s\n", __func__, buf, cmd, buffer);
 
 	StringToHex(buffer, data, &ccount);
 	usbpd_request_vdm_cmd(bcdev, cmd, (unsigned int *)data);
@@ -3279,7 +3279,7 @@ static ssize_t request_vdm_cmd_show(struct class *c,
 		return rc;
 
 	cmd = pst->prop[XM_PROP_UVDM_STATE];
-	pr_info("request_vdm_cmd_show uvdm_state: %d\n", cmd);
+	pr_debug("request_vdm_cmd_show uvdm_state: %d\n", cmd);
 
 	switch (cmd){
 	case USBPD_UVDM_CHARGER_VERSION:
@@ -3310,7 +3310,7 @@ static ssize_t request_vdm_cmd_show(struct class *c,
 		rc = read_ss_auth_property_id(bcdev, pst, prop_id);
 		if (rc < 0)
 			return rc;
-		pr_info("auth:0x%x 0x%x 0x%x 0x%x\n",
+		pr_debug("auth:0x%x 0x%x 0x%x 0x%x\n",
 			bcdev->ss_auth_data[0],bcdev->ss_auth_data[1],bcdev->ss_auth_data[2],bcdev->ss_auth_data[3]);
 		for (i = 0; i < USBPD_UVDM_SS_LEN; i++) {
 			memset(data, 0, sizeof(data));
