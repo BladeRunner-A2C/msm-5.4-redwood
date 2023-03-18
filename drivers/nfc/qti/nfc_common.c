@@ -643,6 +643,31 @@ unsigned int nfc_ioctl_nfcc_info(struct file *filp, unsigned long arg)
 	return r;
 }
 
+/*
+ * Inside nfc_ioctl_nfcc_irq_info
+ *
+ * @brief   nfc_ioctl_nfcc_irq_info
+ *
+ * Check the NQ nfcc irq info
+ */
+unsigned int nfc_ioctl_nfcc_irq_info(struct file *filp, unsigned long arg)
+{
+	unsigned int r = 0;
+	struct nfc_dev *nfc_dev = filp->private_data;
+
+	/*
+	* bit 0~23: nfc_dev->i2c_dev.count_irq
+	* bit 24:   nfc_dev->i2c_dev.irq_enabled
+	* bit 25:   gpio_get_value(nfc_dev->gpio.clkreq)
+	*/
+	r = (nfc_dev->i2c_dev.count_irq & 0x00FFFFFF) |
+	    ((nfc_dev->i2c_dev.irq_enabled ? 1 : 0) << 24) |
+	    ((gpio_get_value(nfc_dev->gpio.clkreq) ? 1 : 0) << 25);
+	pr_debug("nfc : %s r = %d\n", __func__, r);
+
+	return r;
+}
+
 /** @brief   IOCTL function  to be used to set or get data from upper layer.
  *
  *  @param   pfile  fil node for opened device.
@@ -674,8 +699,14 @@ long nfc_dev_ioctl(struct file *pfile, unsigned int cmd, unsigned long arg)
 	case NFCC_GET_INFO:
 		ret = nfc_ioctl_nfcc_info(pfile, arg);
 		break;
+	case NFCC_GET_IRQ_INFO:
+		ret = nfc_ioctl_nfcc_irq_info(pfile, arg);
+		break;
 	case NFC_GET_PLATFORM_TYPE:
 		ret = nfc_dev->interface;
+		break;
+	case NFC_GET_IRQ_STATE:
+		ret = gpio_get_value(nfc_dev->gpio.irq);
 		break;
 	default:
 		pr_err("%s bad cmd %lu\n", __func__, arg);
@@ -697,6 +728,7 @@ int nfc_dev_open(struct inode *inode, struct file *filp)
 	mutex_lock(&nfc_dev->dev_ref_mutex);
 
 	filp->private_data = nfc_dev;
+	nfc_dev->i2c_dev.count_irq = 0;
 
 	if (nfc_dev->dev_ref_count == 0) {
 		if (gpio_is_valid(nfc_dev->gpio.dwl_req)) {
@@ -804,8 +836,14 @@ int nfcc_hw_check(struct nfc_dev *nfc_dev)
 	else {
 		/* making sure that the NFCC starts in a clean state. */
 		gpio_set_ven(nfc_dev, 1);/* HPD : Enable*/
+		/* hardware dependent delay */
+		usleep_range(10000, 10100);
 		gpio_set_ven(nfc_dev, 0);/* ULPM: Disable */
+		/* hardware dependent delay */
+		usleep_range(10000, 10100);
 		gpio_set_ven(nfc_dev, 1);/* HPD : Enable*/
+		/* hardware dependent delay */
+		usleep_range(10000, 10100);
 	}
 
 	nci_reset_cmd[0] = 0x20;
@@ -826,7 +864,9 @@ int nfcc_hw_check(struct nfc_dev *nfc_dev)
 
 		if (nfc_dev->interface == PLATFORM_IF_I2C) {
 			gpio_set_ven(nfc_dev, 0);
+			usleep_range(10000, 10100);
 			gpio_set_ven(nfc_dev, 1);
+			usleep_range(10000, 10100);
 		}
 
 		nci_get_version_cmd[0] = 0x00;
