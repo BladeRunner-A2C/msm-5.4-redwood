@@ -268,7 +268,7 @@ THERMAL_SHOW(board_sensor_temp);
 static ssize_t thermal_board_sensor_temp_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t len)
 {
-	snprintf(board_sensor_temp, PAGE_SIZE, buf);
+	snprintf(board_sensor_temp, sizeof(board_sensor_temp), buf);
 
 	return len;
 }
@@ -279,7 +279,7 @@ THERMAL_SHOW(board_sensor_second_temp);
 static ssize_t thermal_board_sensor_second_temp_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t len)
 {
-	snprintf(board_sensor_second_temp, PAGE_SIZE, buf);
+	snprintf(board_sensor_second_temp, sizeof(board_sensor_temp), buf);
 
 	return len;
 }
@@ -290,7 +290,7 @@ THERMAL_SHOW(boost);
 static ssize_t thermal_boost_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t len)
 {
-	snprintf(boost, PAGE_SIZE, buf);
+	snprintf(boost, sizeof(boost), buf);
 
 	return len;
 }

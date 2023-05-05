@@ -881,7 +881,7 @@ static int gf_probe(struct platform_device *pdev)
 	struct gf_dev *gf_dev = &gf;
 	int status = -EINVAL;
 	unsigned long minor;
-	int i;
+	__maybe_unused int i;
 	/* Initialize the driver data */
 	INIT_LIST_HEAD(&gf_dev->device_entry);
 #if defined(USE_SPI_BUS)
