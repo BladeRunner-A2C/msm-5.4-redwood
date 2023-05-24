@@ -2627,9 +2627,10 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 	rc = utils->read_u32(utils->data, "qcom,mdss-brightness-init-level",
 		&val);
 	if (rc) {
-		DSI_DEBUG("[%s] brigheness-init-level unspecified, defaulting to max level\n",
+		DSI_DEBUG("[%s] brigheness-init-level unspecified, defaulting to 15% max level\n",
 			 panel->name);
-		panel->bl_config.brightness_init_level = panel->bl_config.brightness_max_level;
+		panel->bl_config.brightness_init_level =
+			(panel->bl_config.brightness_max_level * 15) / 100;
 	} else {
 		panel->bl_config.brightness_init_level = val;
 	}
