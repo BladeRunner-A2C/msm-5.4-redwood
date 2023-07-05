@@ -37,7 +37,6 @@ endif
 ifeq ($(CONFIG_ARCH_YUPIK), y)
 include $(srctree)/techpack/camera/config/yupikcamera.conf
 endif
-
 ifeq ($(CONFIG_ARCH_SM6150), y)
 include $(srctree)/techpack/camera/config/sm6150camera.conf
 endif

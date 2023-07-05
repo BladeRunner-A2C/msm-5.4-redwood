@@ -457,6 +457,8 @@ static int cam_flash_ops(struct cam_flash_ctrl *flash_ctrl,
 	return 0;
 }
 
+enum Flash_torch_Type FlashtorchType = cam_flash_Type_off;
+
 int cam_flash_off(struct cam_flash_ctrl *flash_ctrl)
 {
 	int rc = 0;
@@ -469,7 +471,7 @@ int cam_flash_off(struct cam_flash_ctrl *flash_ctrl)
 	if (flash_ctrl->switch_trigger)
 		cam_res_mgr_led_trigger_event(flash_ctrl->switch_trigger,
 			(enum led_brightness)LED_SWITCH_OFF);
-
+	FlashtorchType = cam_flash_Type_off;
 	if ((flash_ctrl->i2c_data.streamoff_settings.is_settings_valid) &&
 		(flash_ctrl->i2c_data.streamoff_settings.request_id == 0)) {
 		flash_ctrl->apply_streamoff = true;
@@ -487,6 +489,7 @@ static int cam_flash_low(
 	struct cam_flash_frame_setting *flash_data)
 {
 	int i = 0, rc = 0;
+	static int lastcur = 0;
 
 	if (!flash_data) {
 		CAM_ERR(CAM_FLASH, "Flash Data Null");
@@ -499,10 +502,23 @@ static int cam_flash_low(
 				flash_ctrl->flash_trigger[i],
 				LED_OFF);
 
+	if (flash_ctrl->switch_trigger)
+		cam_res_mgr_led_trigger_event(flash_ctrl->switch_trigger,
+			(enum led_brightness)LED_SWITCH_OFF);
+
+	//To change the current when the soft light is turned on, you need to turn it off first
+	if (lastcur != flash_data->led_current_ma[0] &&
+		flash_data->led_current_ma[0] > 0 && FlashtorchType != cam_flash_Type_off)
+		rc = cam_flash_off(flash_ctrl);
+
 	rc = cam_flash_ops(flash_ctrl, flash_data,
 		CAMERA_SENSOR_FLASH_OP_FIRELOW);
 	if (rc)
 		CAM_ERR(CAM_FLASH, "Fire Torch failed: %d", rc);
+	else
+		FlashtorchType = cam_flash_Type_low;
+
+	lastcur = flash_data->led_current_ma[0];
 
 	return rc;
 }
@@ -528,6 +544,8 @@ static int cam_flash_high(
 		CAMERA_SENSOR_FLASH_OP_FIREHIGH);
 	if (rc)
 		CAM_ERR(CAM_FLASH, "Fire Flash Failed: %d", rc);
+	else
+		FlashtorchType = cam_flash_Type_low;
 
 	return rc;
 }
