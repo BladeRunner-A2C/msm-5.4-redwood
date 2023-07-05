@@ -10,6 +10,7 @@
 
 &thermal_zones {
 	socd {
+		disable-thermal-zone;
 		cooling-maps {
 			socd_cpu4 {
 				trip = <&socd_trip>;
@@ -33,7 +34,7 @@
 		};
 	};
 
-	pm8350b-bcl-lvl0 {
+/*	pm8350b-bcl-lvl0 {
 		cooling-maps {
 			vbat_cpu4 {
 				trip = <&b_bcl_lvl0>;
@@ -70,6 +71,7 @@
 			};
 		};
 	};
+*/
 
 	pm8350b-bcl-lvl2 {
 		cooling-maps {
@@ -227,6 +229,50 @@
 				trip = <&pmr735b_trip0>;
 				cooling-device = <&modem_mmw3 THERMAL_MAX_LIMIT
 							THERMAL_MAX_LIMIT>;
+			};
+		};
+	};
+
+        gpuss-0-step {
+		polling-delay-passive = <10>;
+		polling-delay = <0>;
+		thermal-governor = "step_wise";
+		thermal-sensors = <&tsens1 1>;
+		trips {
+			gpuss0_config: active-config0 {
+				temperature = <85000>;
+				hysteresis = <0>;
+				type = "passive";
+			};
+		};
+
+		cooling-maps {
+			gpu_cdev {
+				trip = <&gpuss0_config>;
+				cooling-device = <&msm_gpu THERMAL_NO_LIMIT
+							THERMAL_NO_LIMIT>;
+			};
+		};
+	};
+
+	gpuss-1-step {
+		polling-delay-passive = <10>;
+		polling-delay = <100>;
+		thermal-governor = "step_wise";
+		thermal-sensors = <&tsens1 2>;
+		trips {
+			gpuss1_config: active-config0 {
+				temperature = <85000>;
+				hysteresis = <0>;
+				type = "passive";
+			};
+		};
+
+		cooling-maps {
+			gpu_cdev {
+				trip = <&gpuss1_config>;
+				cooling-device = <&msm_gpu THERMAL_NO_LIMIT
+							THERMAL_NO_LIMIT>;
 			};
 		};
 	};
