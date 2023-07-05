@@ -24,7 +24,7 @@
 #include <soc/qcom/boot_stats.h>
 
 #define SPI_NUM_CHIPSELECT	(4)
-#define SPI_XFER_TIMEOUT_MS	(250)
+#define SPI_XFER_TIMEOUT_MS	(1500)
 #define SPI_AUTO_SUSPEND_DELAY	(250)
 /* SPI SE specific registers */
 #define SE_SPI_CPHA		(0x224)
@@ -164,6 +164,7 @@ struct spi_geni_master {
 	int num_rx_eot;
 	int num_xfers;
 	atomic_t is_irq_enable;
+	bool is_xfer_in_progress;
 	void *ipc;
 	bool gsi_mode; /* GSI Mode */
 	bool shared_ee; /* Dual EE use case */
@@ -1052,7 +1053,8 @@ static int spi_geni_prepare_message(struct spi_master *spi,
 		if (!pm_runtime_enabled(mas->dev)) {
 			GENI_SE_ERR(mas->ipc, false, NULL,
 				"%s: System suspended\n", __func__);
-			return -EACCES;
+			ret = -EACCES;
+			goto exit_prepare_message;
 		}
 
 		ret = pm_runtime_get_sync(mas->dev);
@@ -1063,7 +1065,7 @@ static int spi_geni_prepare_message(struct spi_master *spi,
 			pm_runtime_put_noidle(mas->dev);
 			/* Set device in suspended since resume failed */
 			pm_runtime_set_suspended(mas->dev);
-			return ret;
+			goto exit_prepare_message;
 		}
 	}
 
@@ -1334,6 +1336,7 @@ static int spi_geni_prepare_transfer_hardware(struct spi_master *spi)
 
 	/* Adjust the IB based on the max speed of the slave in kHz.*/
 	rsc->ib = (max_speed * DEFAULT_BUS_WIDTH) / 1000;
+	mas->is_xfer_in_progress = true;
 
 	/*
 	 * Not required for LE as below intializations are specific
@@ -1346,6 +1349,7 @@ static int spi_geni_prepare_transfer_hardware(struct spi_master *spi)
 	if (!pm_runtime_enabled(mas->dev)) {
 		GENI_SE_ERR(mas->ipc, false, NULL,
 			"%s: System suspended\n", __func__);
+		mas->is_xfer_in_progress = false;
 		return -EACCES;
 	}
 
@@ -1376,6 +1380,7 @@ static int spi_geni_prepare_transfer_hardware(struct spi_master *spi)
 			pm_runtime_put_noidle(mas->dev);
 			/* Set device in suspended since resume failed */
 			pm_runtime_set_suspended(mas->dev);
+			mas->is_xfer_in_progress = false;
 			return ret;
 		}
 
@@ -1384,6 +1389,7 @@ static int spi_geni_prepare_transfer_hardware(struct spi_master *spi)
 			if (ret) {
 				GENI_SE_ERR(mas->ipc, true, NULL,
 				"%s mas_setup failed: %d\n", __func__, ret);
+				mas->is_xfer_in_progress = false;
 				return ret;
 			}
 		}
@@ -1405,8 +1411,10 @@ static int spi_geni_unprepare_transfer_hardware(struct spi_master *spi)
 	struct spi_geni_master *mas = spi_master_get_devdata(spi);
 	int count = 0;
 
-	if (mas->shared_ee || mas->is_le_vm)
+	if (mas->shared_ee || mas->is_le_vm) {
+		mas->is_xfer_in_progress = false;
 		return 0;
+	}
 
 	if (mas->gsi_mode) {
 		struct se_geni_rsc *rsc;
@@ -1435,6 +1443,8 @@ static int spi_geni_unprepare_transfer_hardware(struct spi_master *spi)
 		pm_runtime_mark_last_busy(mas->dev);
 		pm_runtime_put_autosuspend(mas->dev);
 	}
+
+	mas->is_xfer_in_progress = false;
 	return 0;
 }
 
@@ -2206,6 +2216,7 @@ static int spi_geni_probe(struct platform_device *pdev)
 			"M - DRIVER GENI_SPI_%d Ready", spi->bus_num);
 	place_marker(boot_marker);
 	dev_info(&pdev->dev, "%s: completed\n", __func__);
+	geni_mas->is_xfer_in_progress = false;
 	return ret;
 spi_geni_probe_unmap:
 	devm_iounmap(&pdev->dev, geni_mas->base);
@@ -2315,14 +2326,31 @@ static int spi_geni_suspend(struct device *dev)
 	struct spi_master *spi = get_spi_master(dev);
 	struct spi_geni_master *geni_mas = spi_master_get_devdata(spi);
 
-	if (!pm_runtime_status_suspended(dev)) {
-		GENI_SE_ERR(geni_mas->ipc, true, dev,
-			":%s: runtime PM is active\n", __func__);
-		ret = -EBUSY;
+	if (geni_mas->is_xfer_in_progress) {
+		if (!pm_runtime_status_suspended(dev)) {
+			GENI_SE_ERR(geni_mas->ipc, true, dev,
+				":%s: runtime PM is active\n", __func__);
+			ret = -EBUSY;
+			return ret;
+		}
 		return ret;
 	}
+	if (!pm_runtime_status_suspended(dev)) {
+		if (list_empty(&spi->queue) && !spi->cur_msg) {
+			GENI_SE_ERR(geni_mas->ipc, true, dev,"%s: Force suspend", __func__);
+			ret = spi_geni_runtime_suspend(dev);
+			if (ret) {
+				GENI_SE_ERR(geni_mas->ipc, true, dev,"Force suspend Failed:%d", ret);
+			} else {
+				pm_runtime_disable(dev);
+				pm_runtime_set_suspended(dev);
+				pm_runtime_enable(dev);
+			}
+		} else {
+			ret = -EBUSY;
+		}
+	}
 
-	GENI_SE_ERR(geni_mas->ipc, true, dev, ":%s: End\n", __func__);
 	return ret;
 }
 #else
