@@ -314,6 +314,7 @@ enum {
 	IDX_RT_PROXY_PORT_002_TX,
 	/* IDX 212 */
 	IDX_HDMI_RX_MS,
+	IDX_AFE_PORT_ID_PSEUDOPORT_01,
 	/* IDX 213-> 228 */
 	IDX_AFE_PORT_ID_SEPTENARY_TDM_RX_0,
 	IDX_AFE_PORT_ID_SEPTENARY_TDM_TX_0,
@@ -696,5 +697,6 @@ void afe_tdm_paired_rx_cfg_val(int intf_idx, int afe_port_id,
 	union afe_port_group_config tdm_group, struct afe_tdm_port_config tdm_port,
 	struct afe_param_id_tdm_lane_cfg tdm_lane);
 int afe_paired_rx_tdm_port_ops(int intf_idx, bool enable, atomic_t *dai_group_ref);
+int afe_send_data(phys_addr_t buf_addr_p, u32 mem_map_handle, int bytes);
 
 #endif /* __Q6AFE_V2_H__ */

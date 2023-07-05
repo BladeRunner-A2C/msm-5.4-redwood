@@ -26,6 +26,7 @@
 #include "wcd938x.h"
 #include "internal.h"
 #include "asoc/bolero-slave-internal.h"
+#include "linux/mmhardware_sysfs.h"
 
 #define NUM_SWRS_DT_PARAMS 5
 #define WCD938X_VARIANT_ENTRY_SIZE 32
@@ -292,7 +293,7 @@ static int wcd938x_init_reg(struct snd_soc_component *component)
 				((snd_soc_component_read32(component,
 				WCD938X_DIGITAL_EFUSE_REG_30) & 0x07) << 1));
 	snd_soc_component_update_bits(component,
-				WCD938X_HPH_SURGE_HPHLR_SURGE_EN, 0xC0, 0xC0);
+				WCD938X_HPH_SURGE_HPHLR_SURGE_EN, 0xC0, 0x00);
 
 	return 0;
 }
@@ -2626,48 +2627,6 @@ static int wcd938x_rx_hph_mode_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-static int wcd938x_ear_pa_gain_get(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	u8 ear_pa_gain = 0;
-	struct snd_soc_component *component =
-				snd_soc_kcontrol_component(kcontrol);
-
-	ear_pa_gain = snd_soc_component_read32(component,
-				WCD938X_ANA_EAR_COMPANDER_CTL);
-
-	ear_pa_gain = (ear_pa_gain & 0x7C) >> 2;
-
-	ucontrol->value.integer.value[0] = ear_pa_gain;
-
-	dev_dbg(component->dev, "%s: ear_pa_gain = 0x%x\n", __func__,
-		ear_pa_gain);
-
-	return 0;
-}
-
-static int wcd938x_ear_pa_gain_put(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	u8 ear_pa_gain = 0;
-	struct snd_soc_component *component =
-				snd_soc_kcontrol_component(kcontrol);
-	struct wcd938x_priv *wcd938x = snd_soc_component_get_drvdata(component);
-
-	dev_dbg(component->dev, "%s: ucontrol->value.integer.value[0]  = %ld\n",
-			__func__, ucontrol->value.integer.value[0]);
-
-	ear_pa_gain =  ucontrol->value.integer.value[0] << 2;
-
-	if (!wcd938x->comp1_enable) {
-		snd_soc_component_update_bits(component,
-				WCD938X_ANA_EAR_COMPANDER_CTL,
-				0x7C, ear_pa_gain);
-	}
-
-	return 0;
-}
-
 static int wcd938x_get_compander(struct snd_kcontrol *kcontrol,
 				 struct snd_ctl_elem_value *ucontrol)
 {
@@ -2886,6 +2845,10 @@ static int wcd938x_tx_master_ch_put(struct snd_kcontrol *kcontrol,
 	if (slave_ch_idx < 0 || slave_ch_idx >= WCD938X_MAX_SLAVE_CH_TYPES)
 		return -EINVAL;
 
+	if (ucontrol->value.enumerated.item[0] < 0 ||
+		ucontrol->value.enumerated.item[0] > WCD938X_MAX_SLAVE_CH_TYPES)
+		return -EINVAL;
+
 	dev_dbg(component->dev, "%s: slave_ch_idx: %d", __func__, slave_ch_idx);
 	dev_dbg(component->dev, "%s: ucontrol->value.enumerated.item[0] = %ld\n",
 			__func__, ucontrol->value.enumerated.item[0]);
@@ -3059,8 +3022,6 @@ static const struct soc_enum rx_hph_mode_mux_enum =
 			    rx_hph_mode_mux_text);
 
 static const struct snd_kcontrol_new wcd9380_snd_controls[] = {
-	SOC_ENUM_EXT("EAR PA GAIN", wcd938x_ear_pa_gain_enum,
-		wcd938x_ear_pa_gain_get, wcd938x_ear_pa_gain_put),
 
 	SOC_ENUM_EXT("RX HPH Mode", rx_hph_mode_mux_enum_wcd9380,
 		wcd938x_rx_hph_mode_get, wcd938x_rx_hph_mode_put),
@@ -3100,8 +3061,8 @@ static const struct snd_kcontrol_new wcd938x_snd_controls[] = {
 	SOC_SINGLE_EXT("ADC2_BCS Disable", SND_SOC_NOPM, 0, 1, 0,
 		wcd938x_bcs_get, wcd938x_bcs_put),
 
-	SOC_SINGLE_TLV("HPHL Volume", WCD938X_HPH_L_EN, 0, 20, 1, line_gain),
-	SOC_SINGLE_TLV("HPHR Volume", WCD938X_HPH_R_EN, 0, 20, 1, line_gain),
+	SOC_SINGLE_TLV("HPHL Volume", WCD938X_HPH_L_EN, 0, 24, 1, line_gain),
+	SOC_SINGLE_TLV("HPHR Volume", WCD938X_HPH_R_EN, 0, 24, 1, line_gain),
 	SOC_SINGLE_TLV("ADC1 Volume", WCD938X_ANA_TX_CH1, 0, 20, 0,
 			analog_gain),
 	SOC_SINGLE_TLV("ADC2 Volume", WCD938X_ANA_TX_CH2, 0, 20, 0,
@@ -4303,6 +4264,10 @@ static int wcd938x_bind(struct device *dev)
 	}
 	wcd938x->dev_up = true;
 
+	/* register codec hardware */
+#ifdef CONFIG_MMHARDWARE_DETECTION
+	register_kobj_under_mmsysfs(MM_HW_CODEC, MM_HARDWARE_SYSFS_CODEC_FOLDER);
+#endif
 	return ret;
 err_irq:
 	wcd_irq_exit(&wcd938x->irq_info, wcd938x->virq);
