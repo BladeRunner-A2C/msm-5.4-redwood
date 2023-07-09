@@ -728,6 +728,7 @@ int nfc_dev_open(struct inode *inode, struct file *filp)
 	mutex_lock(&nfc_dev->dev_ref_mutex);
 
 	filp->private_data = nfc_dev;
+
 	nfc_dev->i2c_dev.count_irq = 0;
 
 	if (nfc_dev->dev_ref_count == 0) {
@@ -886,15 +887,8 @@ int nfcc_hw_check(struct nfc_dev *nfc_dev)
 			goto err_nfcc_hw_check;
 		}
 
-		if (nfc_dev->interface == PLATFORM_IF_I2C) {
-			ret = is_data_available_for_read(nfc_dev);
-			if (ret <= 0) {
-				nfc_dev->nfc_disable_intr(nfc_dev);
-				pr_err("%s: - error waiting for get version rsp ret %d\n",
-					__func__, ret);
-				goto err_nfcc_hw_check;
-			}
-		}
+		/* hardware dependent delay */
+		usleep_range(10000, 10100);
 
 		ret = nfc_dev->nfc_read(nfc_dev, nci_get_version_rsp,
 					NCI_GET_VERSION_RSP_LEN);
@@ -918,16 +912,8 @@ int nfcc_hw_check(struct nfc_dev *nfc_dev)
 		goto err_nfcc_reset_failed;
 	}
 
-	if (nfc_dev->interface == PLATFORM_IF_I2C) {
-		ret = is_data_available_for_read(nfc_dev);
-		if (ret <= 0) {
-			nfc_dev->nfc_disable_intr(nfc_dev);
-			pr_err("%s: - error waiting for core reset rsp ret %d\n",
-					__func__, ret);
-
-			goto err_nfcc_hw_check;
-		}
-	}
+	/* hardware dependent delay */
+	msleep(60);
 
 	/* Read Response of RESET command */
 	ret = nfc_dev->nfc_read(nfc_dev, nci_reset_rsp, NCI_RESET_RSP_LEN);
@@ -937,15 +923,8 @@ int nfcc_hw_check(struct nfc_dev *nfc_dev)
 		goto err_nfcc_hw_check;
 	}
 
-	if (nfc_dev->interface == PLATFORM_IF_I2C) {
-		ret = is_data_available_for_read(nfc_dev);
-		if (ret <= 0) {
-			pr_err("%s: - error waiting for core reset ntf ret %d\n",
-					__func__, ret);
-			nfc_dev->nfc_disable_intr(nfc_dev);
-			goto err_nfcc_hw_check;
-		}
-	}
+	/* hardware dependent delay */
+	msleep(30);
 
 	/* Read Notification of RESET command */
 	ret = nfc_dev->nfc_read(nfc_dev, nci_reset_ntf, NCI_RESET_NTF_LEN);
